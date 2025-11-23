@@ -1,0 +1,81 @@
+import expres, { Response } from 'express'
+import jwt from 'jsonwebtoken'
+import fs from 'fs'
+import path from 'path'
+import authMiddleware from './authMiddleware'
+
+
+const app = expres()
+const PORT = 5000
+
+const filePath = path.join(__dirname, 'db.json')
+
+const addUser = (username: string, password: string) => {
+    let users: Record<string, { password: string }> = {}
+    if(fs.existsSync(filePath)){
+        const fileData = fs.readFileSync(filePath, 'utf-8')
+        try {
+            users = JSON.parse(fileData)
+        } catch {
+            users = {}
+        }
+    }
+    if(users[username]) throw new Error(`User ${username} already exists.`)
+    users[username] = { password }
+
+    fs.writeFileSync(filePath, JSON.stringify(users, null, 2), 'utf-8')
+    console.log(`user: ${username} created successfully.`)
+}
+
+app.use(expres.json())
+
+app.post('/register', async (req, res) => {
+    const { username, password } = req.body;
+    if(!username || !password) return res.json({ error: "Invalid credential" })
+    try {
+        addUser(username, password)
+    } catch (error) {
+        return res.json({ error: (error as Error).message })
+    }
+    res.json({ message: "user created successfully" })
+})
+app.post('/login', async(req, res) => {
+    const { username, password } = req.body;
+    const fileData = fs.readFileSync(filePath, 'utf-8')
+    const users = JSON.parse(fileData)
+    if(!username || !password || !users[username] || users[username].password != password) return res.json({ error: "Invalid credential" })
+
+    const token = jwt.sign({username}, "supersecret123", { expiresIn: "1h" })
+    res.json({ token })
+})
+app.get('/profile', authMiddleware ,(req, res) => {
+    if (!req.user) return res.json({ error: "Unauthorized" });
+    const { username } = req.user as { username: string };
+    res.json({ 
+        "message": `Welcome ${username}`,
+        "user": `${username}`
+     })
+})
+
+app.listen(PORT, () => {
+    console.log(`Server is listening on PORT: ${PORT}`)
+})
+
+
+
+authMiddleware:
+import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
+
+export default async function authMiddleware(req: Request, res: Response, next: NextFunction) {
+    const authHeader = req.headers['authorization']
+    const token = authHeader?.split(' ')[1] 
+    if(!token) return res.json({ error: "Unauthorized" })
+    try {
+        const decoded = jwt.verify(token, "supersecret123")
+        req.user = decoded
+        next()
+    } catch (error) {
+        return res.json({ error: "Unauthorized" })
+    }
+}
