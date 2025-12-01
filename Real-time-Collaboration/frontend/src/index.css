@@ -1,0 +1,13 @@
+.container {
+    text-align: center;
+    margin-top: 50px;
+}
+.counter-value {
+    font-size: 48px;
+    margin: 20px 0;
+}
+button {
+    padding: 10px 20px;
+    font-size: 18px;
+    margin: 5px;
+}
